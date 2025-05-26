@@ -1,27 +1,19 @@
-import sys
 import os
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
-
-from mongo_schemas import *
-from mNeural_abs import *
-
 import io
 import base64
 import scipy.io
-
 from tqdm import tqdm
 import torch
 import matplotlib.pyplot as plt
 import sys
 import numpy as np
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
+from mongo_schemas import *
+from mNeural_abs import *
 from pinn_init_torch import pinn
 from equations.allen_cahn_eq.test_data_generator import generator as test_data_generator
 
-# torch.manual_seed(123)
-# np.random.seed(44)
-# torch.cuda.manual_seed(44)
 
 class allen_cahn_nn(AbsNeuralNet):
     mymodel = None
@@ -134,7 +126,6 @@ class allen_cahn_nn(AbsNeuralNet):
                     "physics": 513
                 }
             )
-            print('Creating new dataset')
             data = dataset.data_generator()
             # Сохраняем датасет в базу
             await dataset.insert()
@@ -143,7 +134,6 @@ class allen_cahn_nn(AbsNeuralNet):
             self.neural_model.data_set = [dataset]
             await mNeuralNetMongo.m_save(self.neural_model)
         else:
-            print('Loading existing dataset')
             # Получаем данные из существующего датасета
             existing_data = self.neural_model.data_set[0]
 
@@ -166,29 +156,24 @@ class allen_cahn_nn(AbsNeuralNet):
             else:
                 await self.abs_set_optimizer()
                 opti = self.neural_model.optimizer[0]
-                print('Создан новый оптимизатор:', opti)
 
         # Создаем PyTorch оптимизатор в зависимости от метода
         if opti.method == 'Adam':
-            print('Используем Adam')
             self.torch_optimizer = torch.optim.Adam(
                 self.mymodel.parameters(),
                 **opti.params
             )
         elif opti.method == 'SGD':
-            print('Используем SGD')
             self.torch_optimizer = torch.optim.SGD(
                 self.mymodel.parameters(),
                 **opti.params
             )
         elif opti.method == 'RMSprop':
-            print('Используем RMSprop')
             self.torch_optimizer = torch.optim.RMSprop(
                 self.mymodel.parameters(),
                 **opti.params
             )
         elif opti.method == 'Adagrad':
-            print('Используем Adagrad')
             self.torch_optimizer = torch.optim.Adagrad(
                 self.mymodel.parameters(),
                 **opti.params
@@ -200,17 +185,14 @@ class allen_cahn_nn(AbsNeuralNet):
         await self.create_model(params)
 
         self.mydevice = in_device
-        # self.mymodel = pinn(params).to(self.mydevice)
         layers = [params.input_dim] + params.hidden_sizes + [params.output_dim]
         self.mymodel = pinn(layers, params.Fourier, params.FInputDim, params.FourierScale).to(self.mydevice)
 
         await self.set_optimizer()
 
     async def save_weights(self, path):
-        print('run saving')
         weights = self.mymodel.state_dict()
         await self.abs_save_weights(weights)
-        print('save complited')
 
     async def train(self):
         self.config = self.neural_model.hyper_param
@@ -226,14 +208,6 @@ class allen_cahn_nn(AbsNeuralNet):
 
             current_loss = loss.item()
             self.loss_history.append(current_loss)
-
-            # if self.neural_model.data_set[0].calculate_l2_error:
-            #     l2_error = self.neural_model.data_set[0].calculate_l2_error(
-            #                 self.config.path_true_data,
-            #                 self.mymodel,
-            #                 self.mydevice,
-            #                 test_data_generator)
-            #     self.l2_history.append(l2_error)
             l2_error = 0
 
             if current_loss < self.best_loss:
@@ -245,7 +219,6 @@ class allen_cahn_nn(AbsNeuralNet):
                     f"Epoch {epoch}, Train loss: {current_loss}, L2: {l2_error if self.neural_model.data_set[0].calculate_l2_error else 0}")
 
         await self.save_weights(sys.path[0] + self.config.save_weights_path)
-        print(f"Оптимизатор: {self.torch_optimizer.__class__.__name__}")
 
     async def calc(self):
         test_data, [t, x], [N, T] = test_data_generator()

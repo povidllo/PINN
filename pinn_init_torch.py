@@ -3,9 +3,7 @@ from torch import nn
 import math
 
 
-
 class LinearBlock(nn.Module):
-
     def __init__(self, in_nodes, out_nodes):
         super(LinearBlock, self).__init__()
         self.layer = nn.utils.weight_norm(nn.Linear(in_nodes, out_nodes), dim=0)
@@ -46,7 +44,6 @@ class PINN(nn.Module):
         layers = []
         for i in range(len(layer_list) - 1):
             block = LinearBlock(layer_list[i], layer_list[i + 1])
-            print(block)
             layers.append(block)
         return nn.Sequential(*layers)
 
@@ -67,7 +64,6 @@ def weights_init(m):
 
 def pinn(layer_list, use_fourier=False, fourier_dim=256, fourier_scale=10.0):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print('torch.cuda.is_available()', torch.cuda.is_available())
     model = PINN(layer_list, use_fourier=use_fourier, fourier_dim=fourier_dim, fourier_scale=fourier_scale)
     model.apply(weights_init)
     model.to(device)

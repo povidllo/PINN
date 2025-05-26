@@ -1,6 +1,4 @@
-import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 import io
 import base64
 from tqdm import tqdm
@@ -10,16 +8,12 @@ import sys
 import numpy as np
 import time
 
-from optim_Adam_torch import create_optim
-from pinn_init_torch import pinn
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from equations.oscillator_eq.test_data_generator import generator as test_data_generator
-from mongo_schemas import *
-from mNeural_abs import *
+from mongo_schemas import mNeuralNetMongo
+from mNeural_abs import AbsNeuralNet
+from pinn_init_torch import pinn
 
-
-# torch.manual_seed(123)
-# np.random.seed(44)
-# torch.cuda.manual_seed(44)
 
 class oscillator_nn(AbsNeuralNet):
     mymodel = None
@@ -90,9 +84,6 @@ class oscillator_nn(AbsNeuralNet):
             # Сохраняем в базу данных
             self.params['points_data'] = encoded_data
 
-            # Для обратной совместимости пока оставляем и старое сохранение
-            # np.save(sys.path[0] + '/data/OSC.npy', y.cpu().detach().numpy())
-
             return {'main': x_physics, 'secondary': x_data, 'secondary_true': y_data}
 
         def equation(self, args):
@@ -108,7 +99,7 @@ class oscillator_nn(AbsNeuralNet):
             return physics
 
         def loss_calculator(self, u_pred_f, x_physics, u_pred, y_data):
-            loss1 = torch.mean((u_pred-y_data)**2)# use mean squared error
+            loss1 = torch.mean((u_pred-y_data)**2)
 
             args = {'yhp':u_pred_f, 'x_physics': x_physics, 'd':2, 'w0':20}
             physics = self.equation(args)
@@ -149,7 +140,6 @@ class oscillator_nn(AbsNeuralNet):
                     "physics": 50
                 }
             )
-            print('Creating new dataset')
             data = dataset.data_generator()
             # Сохраняем датасет в базу
             await dataset.insert()
@@ -158,7 +148,6 @@ class oscillator_nn(AbsNeuralNet):
             self.neural_model.data_set = [dataset]
             await mNeuralNetMongo.m_save(self.neural_model)
         else:
-            print('Loading existing dataset')
             # Получаем данные из существующего датасета
             existing_data = self.neural_model.data_set[0]
 
@@ -181,29 +170,24 @@ class oscillator_nn(AbsNeuralNet):
             else:
                 await self.abs_set_optimizer()
                 opti = self.neural_model.optimizer[0]
-                print('Создан новый оптимизатор:', opti)
 
         # Создаем PyTorch оптимизатор в зависимости от метода
         if opti.method == 'Adam':
-            print('Используем Adam')
             self.torch_optimizer = torch.optim.Adam(
                 self.mymodel.parameters(),
                 **opti.params
             )
         elif opti.method == 'SGD':
-            print('Используем SGD')
             self.torch_optimizer = torch.optim.SGD(
                 self.mymodel.parameters(),
                 **opti.params
             )
         elif opti.method == 'RMSprop':
-            print('Используем RMSprop')
             self.torch_optimizer = torch.optim.RMSprop(
                 self.mymodel.parameters(),
                 **opti.params
             )
         elif opti.method == 'Adagrad':
-            print('Используем Adagrad')
             self.torch_optimizer = torch.optim.Adagrad(
                 self.mymodel.parameters(),
                 **opti.params
@@ -215,16 +199,13 @@ class oscillator_nn(AbsNeuralNet):
         await self.create_model(params)
 
         self.mydevice = in_device
-        # self.mymodel = pinn(params).to(self.mydevice)
         layers = [params.input_dim] + params.hidden_sizes + [params.output_dim]
         self.mymodel = pinn(layers, params.Fourier, params.FInputDim, params.FourierScale).to(self.mydevice)
         await self.set_optimizer()
 
     async def save_weights(self, path):
-        print('run saving')
         weights = self.mymodel.state_dict()
         await self.abs_save_weights(weights)
-        print('save complited')
 
     async def train(self):
         self.config = self.neural_model.hyper_param
@@ -263,8 +244,6 @@ class oscillator_nn(AbsNeuralNet):
 
         await self.save_weights(sys.path[0] + self.config.save_weights_path)
         await self.set_loss_graph()
-        print("loss data " + str(self.loss_graph))
-        print(f"Оптимизатор: {self.torch_optimizer.__class__.__name__}")
 
     async def calc(self):
         x, _, _ = test_data_generator()

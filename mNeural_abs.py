@@ -1,4 +1,3 @@
-from mongo_schemas import *
 import abc
 from pymongo import MongoClient
 import gridfs
@@ -6,17 +5,18 @@ import pickle
 from bson.objectid import ObjectId
 
 from pinn_init_torch import pinn
+import mongo_schemas as ms
 
 
 class AbsNeuralNet(abc.ABC):
-    neural_model : mNeuralNetMongo = None
+    neural_model : ms.mNeuralNetMongo = None
 
     client = MongoClient("mongodb://localhost")
     db = client.testDB
     fs = gridfs.GridFS(db)
     loss_graph = []
 
-    class AbsDataSet(mDataSetMongo):
+    class AbsDataSet(ms.mDataSetMongo):
         @abc.abstractmethod
         def data_generator(self):
             '''
@@ -49,19 +49,19 @@ class AbsNeuralNet(abc.ABC):
             pass
 
 
-    async def create_model(self, params : mHyperParams):
+    async def create_model(self, params : ms.mHyperParams):
         # Создаем гиперпараметры и сохраняем их
-        hyper_params = mHyperParamsMongo(**params.model_dump())
+        hyper_params = ms.mHyperParamsMongo(**params.model_dump())
         await hyper_params.insert()
         
         # Создаем модель с сохраненными гиперпараметрами
-        self.neural_model = mNeuralNetMongo(hyper_param=hyper_params)
+        self.neural_model = ms.mNeuralNetMongo(hyper_param=hyper_params)
         self.neural_model.records = []
 
         
         # Если есть параметры оптимизатора, создаем его
         if hasattr(params, 'optimizer'):
-            optimizer = mOptimizerMongo(
+            optimizer = ms.mOptimizerMongo(
                 method=params.optimizer.method,
                 params=params.optimizer.params
             )
@@ -69,13 +69,13 @@ class AbsNeuralNet(abc.ABC):
             self.neural_model.optimizer = [optimizer]
         
         # Сохраняем модель
-        await mNeuralNetMongo.m_insert(self.neural_model)
+        await ms.mNeuralNetMongo.m_insert(self.neural_model)
         
         # Создаем и сохраняем датасет
         await self.set_dataset()
 
     async def abs_save_plot(self, plot):
-        new_rec = MongoRecord(record={'raw': plot})
+        new_rec = ms.MongoRecord(record={'raw': plot})
         await self.append_rec_to_nn(new_rec)
 
     async def abs_save_weights(self, obj):
@@ -83,25 +83,22 @@ class AbsNeuralNet(abc.ABC):
             items_dumps = pickle.dumps(obj, protocol=2)
             ret_id = self.fs.put(items_dumps, filename='my_weights')
             
-            weight = mWeightMongo(weights_id=str(ret_id), tag='weight')
+            weight = ms.mWeightMongo(weights_id=str(ret_id), tag='weight')
             await weight.insert()
             
             self.neural_model.weights = weight
-            await mNeuralNetMongo.m_save(self.neural_model)
-
-            print('gridfs id', ret_id)
+            await ms.mNeuralNetMongo.m_save(self.neural_model)
         except Exception as exp:
             print('save_weights_exp', exp)
 
 
     async def abs_set_optimizer(self):
         try:
-            opti = mOptimizerMongo(method='Adam', params={'lr': 0.001})
-            print('Создан новый оптимизатор:', opti)
+            opti = ms.mOptimizerMongo(method='Adam', params={'lr': 0.001})
 
             await opti.insert()
             self.neural_model.optimizer = [opti]
-            await mNeuralNetMongo.m_save(self.neural_model)
+            await ms.mNeuralNetMongo.m_save(self.neural_model)
         except Exception as exp:
             print('save_optimizer_exp', exp)
 
@@ -115,7 +112,6 @@ class AbsNeuralNet(abc.ABC):
                 if last_fs_weights is not None:
                     weight_dump = last_fs_weights.read()
                     weights = pickle.loads(weight_dump)
-                    print('weights loaded', type(weights))
             except Exception as e:
                 print('load_weights_exp', e)
         
@@ -126,25 +122,23 @@ class AbsNeuralNet(abc.ABC):
             for rec in self.neural_model.records:
                 print(rec.record)
 
-    async def append_rec_to_nn(self, new_rec : MongoRecord):
+    async def append_rec_to_nn(self, new_rec : ms.MongoRecord):
         self.neural_model.records.append(new_rec)
 
-        await mNeuralNetMongo.m_save(self.neural_model)
+        await ms.mNeuralNetMongo.m_save(self.neural_model)
 
-    async def update_dataset_for_nn(self, new_dataset : mDataSetMongo):
+    async def update_dataset_for_nn(self, new_dataset : ms.mDataSetMongo):
         await self.neural_model.data_set[0].delete()
         self.neural_model.data_set = [new_dataset]
 
-        await mNeuralNetMongo.m_save(self.neural_model)
+        await ms.mNeuralNetMongo.m_save(self.neural_model)
 
     '''
     загружает из БД выбранную в интерфейсе модель
     '''
-    async def load_model(self, in_model: mNeuralNet, in_device):
-        load_nn = await mNeuralNetMongo.get(in_model.stored_item_id, fetch_links=True)
-        print(f"Смотри сюда!!!! \n{load_nn.model_dump()}")
+    async def load_model(self, in_model: ms.mNeuralNet, in_device):
+        load_nn = await ms.mNeuralNetMongo.get(in_model.stored_item_id, fetch_links=True)
         self.neural_model = load_nn
-        # self.neural_model.records = []
         await self.set_dataset()
 
         # Загружаем loss_graph из записей модели
@@ -154,7 +148,6 @@ class AbsNeuralNet(abc.ABC):
                 break
 
         self.mydevice = in_device
-        # self.mymodel = pinn(self.neural_model.hyper_param).to(self.mydevice)
         layers = [self.neural_model.hyper_param.input_dim] + self.neural_model.hyper_param.hidden_sizes + [self.neural_model.hyper_param.output_dim]
         params = self.neural_model.hyper_param
         self.mymodel = pinn(layers, params.Fourier, params.FInputDim, params.FourierScale).to(self.mydevice)
@@ -172,24 +165,20 @@ class AbsNeuralNet(abc.ABC):
         
         # Если оптимизатор уже существует, обновляем его
         if self.neural_model.optimizer:
-            print('Обновляем существующий оптимизатор')
             optimizer = self.neural_model.optimizer[0]
             optimizer.method = train_params.get('method')
             optimizer.params = train_params.get('params', {'lr': 0.001})
-
-            # optimizer.params = {''}
             await optimizer.save()
         else:
             # Создаем новый оптимизатор только если его нет
-            print('Создаем новый оптимизатор')
-            optimizer = mOptimizerMongo(
+            optimizer = ms.mOptimizerMongo(
                 method=train_params.get('method'),
                 params=train_params.get('params', {'lr': 0.001})
             )
             await optimizer.insert()
             self.neural_model.optimizer = [optimizer]
         
-        await mNeuralNetMongo.m_save(self.neural_model)
+        await ms.mNeuralNetMongo.m_save(self.neural_model)
         
         # Пересоздаем оптимизатор в PyTorch
         await self.set_optimizer(optimizer)
@@ -202,7 +191,6 @@ class AbsNeuralNet(abc.ABC):
         if len(self.loss_graph) == 0:
             self.loss_graph.append([time, 0, loss])
         else:
-            # prev = self.loss_graph[-1]
             self.loss_graph.append([time, epoch, loss])
     
     async def set_loss_graph(self):
@@ -210,16 +198,16 @@ class AbsNeuralNet(abc.ABC):
             if record.tag == 'loss_graph':
                 # self.loss_graph = record.record['loss_graph']
                 record.record['loss_graph'] = self.loss_graph
-                await mNeuralNetMongo.m_save(self.neural_model)
+                await ms.mNeuralNetMongo.m_save(self.neural_model)
                 return
             
         # Создаем запись с loss_graph
-        loss_record = MongoRecord(record={'loss_graph': self.loss_graph}, tag='loss_graph')
+        loss_record = ms.MongoRecord(record={'loss_graph': self.loss_graph}, tag='loss_graph')
         await loss_record.insert()
         
         # Добавляем запись к модели
         self.neural_model.records.append(loss_record)
-        await mNeuralNetMongo.m_save(self.neural_model)
+        await ms.mNeuralNetMongo.m_save(self.neural_model)
 
     async def get_loss_graph(self):
         for record in self.neural_model.records:
@@ -229,13 +217,13 @@ class AbsNeuralNet(abc.ABC):
         return None
 
     @abc.abstractmethod
-    async def construct_model(self, params : mHyperParams, in_device): pass
+    async def construct_model(self, params : ms.mHyperParams, in_device): pass
 
     @abc.abstractmethod
-    def set_optimizer(self, opti : mOptimizer = None): pass
+    def set_optimizer(self, opti : ms.mOptimizer = None): pass
 
     @abc.abstractmethod
-    async def set_dataset(self, dataset: mDataSet = None): pass
+    async def set_dataset(self, dataset: ms.mDataSet = None): pass
 
     '''
     тренировка модели

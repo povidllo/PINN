@@ -1,7 +1,8 @@
 from fastapi import WebSocket
 import torch
 
-from mNeural_abs import ChatMessage, AbsNeuralNet, mHyperParams, mDataSet, mNeuralNetMongo, Optional
+from mongo_schemas import ChatMessage, mHyperParams, mDataSet, mNeuralNetMongo, Optional
+from mNeural_abs import AbsNeuralNet
 from equations.oscillator_eq.oscillator import oscillator_nn
 from equations.allen_cahn_eq.allen_cahn import allen_cahn_nn
 
@@ -34,14 +35,12 @@ class NeuralNetMicroservice:
     ws_manager = ConnectionManager()
 
     async def create_model(self, params: mHyperParams):
-        print(f"PARAMS: {params}")
         if params.my_model_type is not None and params.my_model_type in self.models_list:
             self.inner_model = (self.models_list[params.my_model_type])()
             await self.inner_model.construct_model(params, self.device)
 
     async def train_model(self):
         if self.inner_model is not None:
-            print(self.inner_model)
             await self.inner_model.train()
 
     async def set_dataset(self, dataset: mDataSet = None):
@@ -51,13 +50,7 @@ class NeuralNetMicroservice:
     async def load_nn(self, inp_nn: Optional[mNeuralNetMongo] = None):
 
         my_nn = await mNeuralNetMongo.get_item_by_id(inp_nn)
-
-        print(f"\n\nТуточки \n{my_nn.model_dump()} \nценок\n")
-
-        print(f"my_nn - {type(my_nn)} {my_nn.model_dump()}")
-        print(f"hyper_param1 - {type(my_nn.hyper_param)}, {my_nn.hyper_param}")
         params = await my_nn.hyper_param.fetch()
-        print(f"hyper_param2 - {type(params)} {params}")
 
         if params.my_model_type is not None and params.my_model_type in self.models_list:
             self.inner_model = (self.models_list[params.my_model_type])()
@@ -69,6 +62,4 @@ class NeuralNetMicroservice:
         base64_encoded_image = b''
         if self.inner_model is not None:
             base64_encoded_image = await self.inner_model.calc()
-
-
         return base64_encoded_image

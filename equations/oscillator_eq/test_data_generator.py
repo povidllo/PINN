@@ -1,6 +1,7 @@
 import numpy as np
-
 import torch
+
+
 def generator():
     '''
     Генерация тестовых данных для вычисления L2 ошибки

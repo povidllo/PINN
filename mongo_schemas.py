@@ -1,8 +1,8 @@
-from typing import List, Dict, Optional, Union, Any
-from fastapi import Body, UploadFile
-from pydantic import BaseModel, ConfigDict
-from beanie import Document, Indexed, init_beanie, Link, WriteRules
+from typing import List, Optional
+from pydantic import BaseModel
+from beanie import Document, Link, WriteRules
 import fastapi_jsonrpc as jsonrpc
+
 
 cur_host = 'localhost'
 glob_user = 'andy'
@@ -16,13 +16,13 @@ dataset_mongo_database = "DATASET"
 hyper_params_mongo_database = "HYPER_PARAMS"
 neural_net_mongo_database = "NEURAL_NET"
 weights_mongo_database = "WEIGHTS"
+
 class MyError(jsonrpc.BaseError):
     CODE = 5000
     MESSAGE = 'My error'
 
     class DataModel(BaseModel):
         details: str
-
 
 class ChatMessage(BaseModel):
     msg_id: Optional[str] = None
@@ -74,7 +74,6 @@ class MongoRecord(mRecord, Document):
 
     class Config:
         arbitrary_types_allowed = True
-        # json_encoders = {bytes: lambda s: str(s, errors='ignore') }
 
 class mOptimizerMongo(mOptimizer, Document):
     class Settings:
@@ -129,14 +128,12 @@ class mNeuralNetMongo(mNeuralNet, Document):
 
     @staticmethod
     async def get_item_by_id(el:Document):
-
         res = await mNeuralNetMongo.get(el.stored_item_id)
         return res
 
     @staticmethod
     async def m_save(el:Document):
         await el.save(link_rule=WriteRules.WRITE)
-        # await el.insert(link_rule=WriteRules.WRITE)
 
     @staticmethod
     async def update_train_params(model_id: str, train_params: mHyperParamsMongo):
@@ -166,7 +163,6 @@ class MongoEstimate(mEstimate, Document):
     @staticmethod
     async def find_entries_all():
         all = await MongoEstimate.find({}, fetch_links=True).to_list()
-        print(all)
         return all
 
     class Settings:
@@ -179,8 +175,6 @@ class MongoEstimate(mEstimate, Document):
 async def clear_all_collections():
     """Очищает все коллекции в базе данных"""
     try:
-        print("Starting database cleanup...")
-        
         collections = [
             MongoRecord,
             mOptimizerMongo,
@@ -192,15 +186,12 @@ async def clear_all_collections():
         ]
         
         for collection in collections:
-            print(f"Clearing {collection.__name__}...")
             try:
                 await collection.delete_all()
             except Exception as e:
                 print(f"Error clearing {collection.__name__}: {str(e)}")
                 # Продолжаем очистку других коллекций
                 continue
-        
-        print("All collections cleared successfully")
     except Exception as e:
         print(f"Error during collection cleanup: {str(e)}")
         raise e
