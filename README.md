@@ -3,8 +3,11 @@ The project focuses on developing a one page application for calculating the str
 
 ## Environemt
 OS - Fedora Linux 40, MacOS
+
 Python - 3.12
+
 Browser - Mozilla Firefox 136.0.1
+
 Mongodb - 
 
 ## Launch
