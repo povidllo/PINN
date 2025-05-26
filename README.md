@@ -2,13 +2,13 @@
 The project focuses on developing a one page application for calculating the strength and other mechanical properties of structural elements made from composite materials. These calculations are performed by solving partial differential equations of mathematical physics. The key feature of the project is the use of Physics-Informed Neural Networks (PINN), which combine neural networks with physical laws to solve complex differential equations more efficiently than traditional methods such as Finite Element Method(FEM).
 
 ## Environemt
-OS - Fedora Linux 40, MacOS
+OS - Fedora Linux 40, macOS Sequoia 15.4.1
 
 Python - 3.12
 
 Browser - Mozilla Firefox 136.0.1
 
-Mongodb - 
+MongoDB - 8.0 Community Edition
 
 ## Launch
 1) You need to install MongoDB https://www.mongodb.com/try/download/community
