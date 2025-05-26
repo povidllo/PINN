@@ -14,3 +14,6 @@ Mongodb -
 1) You need to install MongoDB https://www.mongodb.com/try/download/community
 2) Install the required dependencies from the file requirments.txt using the command ``` pip install -r requirements.txt ```
 3) Use command ```python main.py``` to run application
+
+## Previous repository
+https://github.com/povidllo/Calculation-module-based-on-PINN-neural-network-architecture
